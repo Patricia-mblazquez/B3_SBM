@@ -385,11 +385,6 @@
           <GroupName>Source Group 1</GroupName>
           <Files>
             <File>
-              <FileName>i2c_bus.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\i2c_bus.c</FilePath>
-            </File>
-            <File>
               <FileName>i2c_bus.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\src\i2c_bus.h</FilePath>
@@ -403,6 +398,11 @@
               <FileName>stm32f4xx_it.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\src\stm32f4xx_it.c</FilePath>
+            </File>
+            <File>
+              <FileName>i2c_bus.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\i2c_bus.c</FilePath>
             </File>
           </Files>
         </Group>

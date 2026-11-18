@@ -30,7 +30,7 @@ typedef struct {
 // Estructura del mensaje de SALIDA 
 typedef struct {
     I2C_Sensor_t    sensor;   
-    uint16_t        data_rx;   
+    float        data_rx;   
    // int8_t          status;    // Un código para saber si hubo error en la comunicación
 } I2C_MsgOut_t;
 
