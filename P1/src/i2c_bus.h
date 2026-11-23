@@ -30,12 +30,16 @@ typedef struct {
 // Estructura del mensaje de SALIDA 
 typedef struct {
     I2C_Sensor_t    sensor;   
-    float        data_rx;   
+    float        data_rx;  
+//uint8_t         command;   // NUEVO: Para saber si es voltaje o corriente	
    // int8_t          status;    // Un código para saber si hubo error en la comunicación
 } I2C_MsgOut_t;
 
 
 /******** DECLARACIÓN DE FUNCIONES ********/
 int Init_Th_I2C (void);
+//Funciones para que el resto del proyecto tenga acceso a las colas de entrada y salida
+osStatus_t I2C_SendRequest(I2C_MsgIn_t *msg);
+osStatus_t I2C_GetResponse(I2C_MsgOut_t *msg, uint32_t timeout);
 
 #endif

@@ -18,6 +18,8 @@
 #define INA226_REG_BUS_VOLTAGE	0x02	// Registro para leer la tensión del bus
 #define INA226_REG_CURRENT			0x04	// Registro para leer la corriente
 #define INA226_REG_CALIBRATION	0x05	// Registro para escribir la calibración
+#define INA226_CAL_VALUE        0x0200 // Valor de calibración para R_shunt = 0.1 Ohm y Current_LSB = 0.1 mA (512 = 0x0200)
+
 
 /*==========================================================
 =                VARIABLES Y OBJETOS GLOBALES               =
@@ -44,6 +46,9 @@ static void I2C_Callback(uint32_t event);
 
 /*---- Lectura de datos ----*/
 static int16_t Read_data(uint8_t address, uint8_t reg);
+
+/*---- Escritura de datos ----*/
+static void Write_data(uint8_t address, uint8_t reg, uint16_t data);
 
 /*==========================================================
 =            CREACIÓN DE HILOS Y COLA DE MENSAJES           =
@@ -73,6 +78,9 @@ void Th_I2C(void *argument) {
 	
 	Init_I2C();
 	
+	//Calibramos el INA226 en el momento que arrancamos
+	Write_data (INA226_ADDRESS, INA226_REG_CALIBRATION, INA226_CAL_VALUE);
+	
 	I2C_MsgIn_t msg_in;
 	I2C_MsgOut_t msg_out;
 	
@@ -97,18 +105,23 @@ void Th_I2C(void *argument) {
 				}
 			break;
 			case SENSOR_INA226:
-				switch (msg_in.command){
-					case INA226_REG_CURRENT:	// Leer la corriente
-						data = Read_data(INA226_ADDRESS, msg_in.command);
-						// Ajustar para hacer la medida de la corriente bien
-						//msg_out.data_rx = data * (...) ;
-						break;
-					case INA226_REG_BUS_VOLTAGE:	// Leer el voltaje
-						data = Read_data(INA226_ADDRESS, msg_in.command);
-						msg_out.data_rx = (uint16_t)data * 0.00125f;	// [V]
-						break;
-					default:	break;
-				break;
+				if (msg_in.operation == I2C_WRITE) {
+         // NUEVO: Permite configurar modos (power-down / continuo)
+					Write_data(INA226_ADDRESS, msg_in.command, msg_in.data_tx);
+        } else {
+					switch (msg_in.command){
+						case INA226_REG_CURRENT:	// Leer la corriente
+							data = Read_data(INA226_ADDRESS, msg_in.command);
+							// Ajustar para hacer la medida de la corriente bien
+							msg_out.data_rx = data * 0.1f;
+							break;
+						case INA226_REG_BUS_VOLTAGE:	// Leer el voltaje
+							data = Read_data(INA226_ADDRESS, msg_in.command);
+							msg_out.data_rx = (uint16_t)data * 0.00125f;	// [V]
+							break;
+						default:	break;
+					break;
+					}
 			}
 		}
 		
@@ -134,6 +147,17 @@ static void I2C_Callback(uint32_t event){
 	}
 }
 
+/* --- Funciones para que main pueda entrar --- */
+//EXPLICACION BORRAR: queremos q main pueda entrar para que pueda enviar los datos al LCD 
+//O para saber que sensor es el que se esta usando pues td eso
+osStatus_t I2C_SendRequest(I2C_MsgIn_t *msg) {
+    return osMessageQueuePut(q_I2C_in, msg, 0U, 10U);
+}
+
+osStatus_t I2C_GetResponse(I2C_MsgOut_t *msg, uint32_t timeout) {
+    return osMessageQueueGet(q_I2C_out, msg, NULL, timeout);
+}
+
 /*==========================================================
 =                       LECTURA DE DATOS                      =
 ==========================================================*/
@@ -152,7 +176,7 @@ static int16_t Read_data(uint8_t address, uint8_t reg){
 	I2Cdrv -> MasterTransmit(address, &reg, 1, true);
 	osThreadFlagsWait(FLAG_I2C_DONE, osFlagsWaitAll, osWaitForever);
 	
-	// Recive los datos del registro
+	// Recibe los datos del registro
 	I2Cdrv -> MasterReceive(address, lectura_bits, 2, false);
 	osThreadFlagsWait(FLAG_I2C_DONE, osFlagsWaitAll, osWaitForever);
 	
@@ -163,9 +187,9 @@ static int16_t Read_data(uint8_t address, uint8_t reg){
 }
 
 /* --- Calibración de INA226 --- */
-/*static void Write_data(uint8_t address, uint8_t reg, uint16_t data){
+static void Write_data(uint8_t address, uint8_t reg, uint16_t data){
 	
-	uint32_t buffer[3];
+	uint8_t buffer[3]; //Enviar 3 bytes, 1 de registos y 2 de datos
 	buffer[0] = reg;
 	buffer[1] = (uint8_t)(data >> 8);
 	buffer[2] = (uint8_t)data;
@@ -173,7 +197,9 @@ static int16_t Read_data(uint8_t address, uint8_t reg){
 	I2Cdrv -> MasterTransmit(address, buffer, 3, false);
 	osThreadFlagsWait(FLAG_I2C_DONE, osFlagsWaitAll, osWaitForever);
 
-}*/
+}
+
+
 	
 	
 	

@@ -31,6 +31,8 @@
 #endif
 
 #ifdef RTE_CMSIS_RTOS2_RTX5
+
+#include "i2c_bus.h"
 /**
   * Override default HAL_GetTick function
   */
@@ -76,8 +78,14 @@ HAL_StatusTypeDef HAL_InitTick(uint32_t TickPriority) {
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
+void Th_Test_E1(void *argument);
 
 /* Private functions ---------------------------------------------------------*/
+
+/* Variables globales para ver en la ventana Watch de Keil */
+float test_temp = 0.0f;
+float test_volt = 0.0f;
+float test_curr = 0.0f;
 
 /**
   * @brief  Main program
@@ -97,6 +105,9 @@ int main(void)
 
   /* Create thread functions that start executing, 
   Example: osThreadNew(app_main, NULL, NULL); */
+	
+	Init_Th_I2C();                          // Arranca el módulo I2C
+  osThreadNew(Th_Test_E1, NULL, NULL);    // Arranca el hilo de prueba
 
   /* Start thread execution */
   osKernelStart();
@@ -197,3 +208,43 @@ void assert_failed(uint8_t *file, uint32_t line)
 /**
   * @}
   */
+	
+	
+	//ESTO ES COPIADO Y PEGADO HABRÁ Q PENSARLO 
+	
+	void Th_Test_E1(void *argument) {
+    (void)argument;
+    I2C_MsgIn_t peticion;
+    I2C_MsgOut_t respuesta;
+
+    while (1) {
+        // 1. Pedir Temperatura (LM75B)
+        peticion.operation = I2C_READ;
+        peticion.sensor = SENSOR_LM75B;
+        peticion.command = 0x00;
+        I2C_SendRequest(&peticion);
+        if (I2C_GetResponse(&respuesta, osWaitForever) == osOK) {
+            test_temp = respuesta.data_rx;
+        }
+
+        // 2. Pedir Voltaje (INA226)
+        peticion.operation = I2C_READ;
+        peticion.sensor = SENSOR_INA226;
+        peticion.command = 0x02;
+        I2C_SendRequest(&peticion);
+        if (I2C_GetResponse(&respuesta, osWaitForever) == osOK) {
+            test_volt = respuesta.data_rx;
+        }
+
+        // 3. Pedir Corriente (INA226)
+        peticion.operation = I2C_READ;
+        peticion.sensor = SENSOR_INA226;
+        peticion.command = 0x04;
+        I2C_SendRequest(&peticion);
+        if (I2C_GetResponse(&respuesta, osWaitForever) == osOK) {
+            test_curr = respuesta.data_rx;
+        }
+
+        osDelay(1000); // Repetir cada segundo
+    }
+}
