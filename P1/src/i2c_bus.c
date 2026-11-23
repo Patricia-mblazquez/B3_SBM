@@ -27,6 +27,7 @@
 
 /*---- Hilos y colas ----*/
 osThreadId_t tid_Th_I2C;                        // thread id
+osThreadId_t tid_Th_I2C_Test;
 static osMessageQueueId_t q_I2C_in;
 static osMessageQueueId_t q_I2C_out;
 
@@ -39,6 +40,7 @@ static ARM_DRIVER_I2C* I2Cdrv = &Driver_I2C1;
 ==========================================================*/
 
 void Th_I2C (void *argument);                   // thread function
+void Th_I2C_Test(void *argument);
 
 /*---- Inicializacion I2C ----*/
 static void Init_I2C(void);
@@ -49,6 +51,11 @@ static int16_t Read_data(uint8_t address, uint8_t reg);
 
 /*---- Escritura de datos ----*/
 static void Write_data(uint8_t address, uint8_t reg, uint16_t data);
+
+/* Variables globales para ver en la ventana Watch de Keil */
+float test_temp = 0.0f;
+float test_volt = 0.0f;
+float test_curr = 0.0f;
 
 /*==========================================================
 =            CREACIÓN DE HILOS Y COLA DE MENSAJES           =
@@ -69,6 +76,12 @@ int Init_Th_I2C (void) {
   if (tid_Th_I2C == NULL) {
     return(-1);
   }
+	
+	// Crear el hilo de test
+  tid_Th_I2C_Test= osThreadNew(Th_I2C_Test, NULL, NULL);
+  if (tid_Th_I2C_Test == NULL) {
+    return(-1);
+  }
  
   return(0);
 }
@@ -79,7 +92,7 @@ void Th_I2C(void *argument) {
 	Init_I2C();
 	
 	//Calibramos el INA226 en el momento que arrancamos
-	Write_data (INA226_ADDRESS, INA226_REG_CALIBRATION, INA226_CAL_VALUE);
+	//Write_data (INA226_ADDRESS, INA226_REG_CALIBRATION, INA226_CAL_VALUE);
 	
 	I2C_MsgIn_t msg_in;
 	I2C_MsgOut_t msg_out;
@@ -106,7 +119,7 @@ void Th_I2C(void *argument) {
 			break;
 			case SENSOR_INA226:
 				if (msg_in.operation == I2C_WRITE) {
-         // NUEVO: Permite configurar modos (power-down / continuo)
+         //Permite configurar modos (power-down / continuo)
 					Write_data(INA226_ADDRESS, msg_in.command, msg_in.data_tx);
         } else {
 					switch (msg_in.command){
@@ -128,6 +141,44 @@ void Th_I2C(void *argument) {
 		osMessageQueuePut(q_I2C_out, &msg_out, 0U, 10U);
 	}
 }
+
+	void Th_I2C_Test(void *argument) {
+    (void)argument;
+    I2C_MsgIn_t peticion;
+    I2C_MsgOut_t respuesta;
+
+    while (1) {
+        // 1. Pedir Temperatura (LM75B)
+        peticion.operation = I2C_READ;
+        peticion.sensor = SENSOR_LM75B;
+        peticion.command = 0x00;
+        I2C_SendRequest(&peticion);
+        if (I2C_GetResponse(&respuesta, osWaitForever) == osOK) {
+            test_temp = respuesta.data_rx;
+        }
+
+//        // 2. Pedir Voltaje (INA226)
+//        peticion.operation = I2C_READ;
+//        peticion.sensor = SENSOR_INA226;
+//        peticion.command = 0x02;
+//        I2C_SendRequest(&peticion);
+//        if (I2C_GetResponse(&respuesta, osWaitForever) == osOK) {
+//            test_volt = respuesta.data_rx;
+//        }
+
+//        // 3. Pedir Corriente (INA226)
+//        peticion.operation = I2C_READ;
+//        peticion.sensor = SENSOR_INA226;
+//        peticion.command = 0x04;
+//        I2C_SendRequest(&peticion);
+//        if (I2C_GetResponse(&respuesta, osWaitForever) == osOK) {
+//            test_curr = respuesta.data_rx;
+//        }
+
+        osDelay(1000); // Repetir cada segundo
+    }
+}
+	
 	
 /*==========================================================
 =                       INICIALIZACIÓN I2C                      =
