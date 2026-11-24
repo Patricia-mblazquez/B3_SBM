@@ -94,6 +94,7 @@ void Th_I2C(void *argument) {
 	//Calibramos el INA226 en el momento que arrancamos
 	//Write_data (INA226_ADDRESS, INA226_REG_CALIBRATION, INA226_CAL_VALUE);
 	
+	
 	I2C_MsgIn_t msg_in;
 	I2C_MsgOut_t msg_out;
 	
@@ -120,7 +121,7 @@ void Th_I2C(void *argument) {
 			case SENSOR_INA226:
 				if (msg_in.operation == I2C_WRITE) {
          //Permite configurar modos (power-down / continuo)
-					Write_data(INA226_ADDRESS, msg_in.command, msg_in.data_tx);
+					//Write_data(INA226_ADDRESS, msg_in.command, msg_in.data_tx);
         } else {
 					switch (msg_in.command){
 						case INA226_REG_CURRENT:	// Leer la corriente
@@ -157,14 +158,14 @@ void Th_I2C(void *argument) {
             test_temp = respuesta.data_rx;
         }
 
-//        // 2. Pedir Voltaje (INA226)
-//        peticion.operation = I2C_READ;
-//        peticion.sensor = SENSOR_INA226;
-//        peticion.command = 0x02;
-//        I2C_SendRequest(&peticion);
-//        if (I2C_GetResponse(&respuesta, osWaitForever) == osOK) {
-//            test_volt = respuesta.data_rx;
-//        }
+        // 2. Pedir Voltaje (INA226)
+        peticion.operation = I2C_READ;
+        peticion.sensor = SENSOR_INA226;
+        peticion.command = 0x02;
+        I2C_SendRequest(&peticion);
+        if (I2C_GetResponse(&respuesta, osWaitForever) == osOK) {
+            test_volt = respuesta.data_rx;
+        }
 
 //        // 3. Pedir Corriente (INA226)
 //        peticion.operation = I2C_READ;
