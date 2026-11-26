@@ -1,3 +1,12 @@
+/***********************************************************
+* Módulo: BUS I2C
+* Módulo encargado del acceso compartido al bus I2C mediante
+* CMSIS-Driver I2C. Permite gestionar el LM75B y el INA226
+*
+* Autoras: Patricia Martín y Ainhoa Álvarez
+* Fecha: Noviembre 2026
+***********************************************************/
+
 #include "cmsis_os2.h"                          // CMSIS RTOS header file
 #include "i2c_bus.h"
 #include "Driver_I2C.h"
