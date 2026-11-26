@@ -105,6 +105,7 @@ void Th_I2C(void *argument) {
 		osMessageQueueGet(q_I2C_in, &msg_in, NULL, osWaitForever);
 		
 		msg_out.sensor = msg_in.sensor;
+		msg_out.command = msg_in.command;
 		
 		switch(msg_in.sensor){
 			case SENSOR_LM75B:		// Leer la temperatura
@@ -122,9 +123,6 @@ void Th_I2C(void *argument) {
 			case SENSOR_INA226:
 				if (msg_in.operation == I2C_WRITE) {
 					// Configurar modo continuo y calibrar
-					Write_data(ina226_addr, INA226_REG_CONFIG, INA226_CFG_CONT);
-					Write_data(ina226_addr, INA226_REG_CALIBRATION, INA226_CAL_VALUE);
-         //Permite configurar modos (power-down / continuo)
 					Write_data(INA226_ADDRESS, msg_in.command, msg_in.data_tx);
         } else {
 					switch (msg_in.command){
@@ -153,6 +151,21 @@ void Th_I2C(void *argument) {
     (void)argument;
     I2C_MsgIn_t peticion;
     I2C_MsgOut_t respuesta;
+		
+		/*--- Configuración inicial del INA226---*/
+		peticion.operation = I2C_WRITE;
+		peticion.sensor = SENSOR_INA226;
+		peticion.command = INA226_REG_CONFIG;
+		peticion.data_tx = INA226_CFG_CONT;
+		
+		osMessageQueuePut(q_I2C_in, &peticion, 0U, 10U);
+		osMessageQueueGet(q_I2C_out, &respuesta, NULL, osWaitForever);
+		
+		peticion.command = INA226_REG_CALIBRATION;
+		peticion.data_tx = INA226_CAL_VALUE;
+		
+		osMessageQueuePut(q_I2C_in, &peticion, 0U, 10U);
+		osMessageQueueGet(q_I2C_out, &respuesta, NULL, osWaitForever);
 
     while (1) {
 			// 1. Pedir Temperatura (LM75B)
@@ -242,9 +255,3 @@ static void Write_data(uint8_t address, uint8_t reg, uint16_t data){
 	osThreadFlagsWait(FLAG_I2C_DONE, osFlagsWaitAll, osWaitForever);
 
 }
-
-
-	
-	
-	
-	
