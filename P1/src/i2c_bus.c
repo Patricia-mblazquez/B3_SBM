@@ -14,12 +14,12 @@
 #define LM75B_REG_TEMP	0x00	// Registro interno para lee la temperatura	
 
 // Para el módulo INA226
-#define INA226_ADDRESS					0x40	//Dirección
+#define INA226_ADDRESS					0x44		// Dirección
 #define INA226_REG_CONFIG       0x00    // Registro de configuración
-#define INA226_REG_BUS_VOLTAGE	0x02	// Registro para leer la tensión del bus
-#define INA226_REG_CURRENT			0x04	// Registro para leer la corriente
-#define INA226_REG_CALIBRATION	0x05	// Registro para escribir la calibración
-#define INA226_CAL_VALUE        0x1400 // Valor de calibración para R_shunt = 0.1 Ohm y Current_LSB = 0.1 mA (512 = 0x0200)
+#define INA226_REG_BUS_VOLTAGE	0x02		// Registro para leer la tensión del bus
+#define INA226_REG_CURRENT			0x04		// Registro para leer la corriente
+#define INA226_REG_CALIBRATION	0x05		// Registro para escribir la calibración
+#define INA226_CAL_VALUE        0x1400 	// Valor de calibración para R_shunt = 0.1 Ohm y Current_LSB = 0.1 mA (512 = 0x0200)
 #define INA226_REG_MANUF_ID     0xFE    // Siempre devuelve 0x5449 ("TI")
 #define INA226_CFG_CONT         0x4127  // Valor de modo continuo
 
@@ -28,7 +28,7 @@
 ==========================================================*/
 
 /*---- Hilos y colas ----*/
-osThreadId_t tid_Th_I2C;                        // thread id
+osThreadId_t tid_Th_I2C;                       
 osThreadId_t tid_Th_I2C_Test;
 static osMessageQueueId_t q_I2C_in;
 static osMessageQueueId_t q_I2C_out;
@@ -45,7 +45,8 @@ volatile uint8_t  ina226_encontrado = 0;
 =                  DECLARACIÓN DE FUNCIONES                 =
 ==========================================================*/
 
-void Th_I2C (void *argument);                   // thread function
+/*---- Hilos ----*/
+void Th_I2C (void *argument);                   
 void Th_I2C_Test(void *argument);
 
 /*---- Inicializacion I2C ----*/
@@ -95,28 +96,10 @@ int Init_Th_I2C (void) {
 void Th_I2C(void *argument) {
 	(void)argument;
 	Init_I2C();
+	
 	int16_t data = 0;
-	
-	//Comprobar la direccion del INA226
-	for (uint8_t addr = 0x40; addr <= 0x4F; addr++) {
-        data = Read_data(addr, INA226_REG_MANUF_ID);
-        if ((uint16_t)data == 0x5449) {
-            ina226_addr = addr;
-            ina226_encontrado = 1;
-            break;
-        }
-    }
-    
-    // Configurar modo continuo y calibrar usando la dirección encontrada
-    if (ina226_encontrado) {
-        Write_data(ina226_addr, INA226_REG_CONFIG, INA226_CFG_CONT);
-        Write_data(ina226_addr, INA226_REG_CALIBRATION, INA226_CAL_VALUE);
-    }
-	
 	I2C_MsgIn_t msg_in;
 	I2C_MsgOut_t msg_out;
-	
-	
 	
   while (1) {
 		osMessageQueueGet(q_I2C_in, &msg_in, NULL, osWaitForever);
@@ -128,7 +111,6 @@ void Th_I2C(void *argument) {
 				switch (msg_in.command){
 					case LM75B_REG_TEMP:
 						data = Read_data(LM75B_ADDRESS, msg_in.command);
-
 						// Pasar de bits a temperatura
 						data >>= 5;
 						msg_out.data_rx = data * 0.125f; // [ºC]
@@ -136,27 +118,33 @@ void Th_I2C(void *argument) {
 					default:	break;
 				}
 			break;
+				
 			case SENSOR_INA226:
 				if (msg_in.operation == I2C_WRITE) {
+					// Configurar modo continuo y calibrar
+					Write_data(ina226_addr, INA226_REG_CONFIG, INA226_CFG_CONT);
+					Write_data(ina226_addr, INA226_REG_CALIBRATION, INA226_CAL_VALUE);
          //Permite configurar modos (power-down / continuo)
-					Write_data(ina226_addr, msg_in.command, msg_in.data_tx);
+					Write_data(INA226_ADDRESS, msg_in.command, msg_in.data_tx);
         } else {
 					switch (msg_in.command){
+						
 						case INA226_REG_CURRENT:	// Leer la corriente
-							data = Read_data(ina226_addr, msg_in.command);
-							// Ajustar para hacer la medida de la corriente bien
+							data = Read_data(INA226_ADDRESS, msg_in.command);
+							// Pasar de bits a corriente
 							msg_out.data_rx = data * 0.01f; //[mA]
 							break;
+						
 						case INA226_REG_BUS_VOLTAGE:	// Leer el voltaje
-							data = Read_data(ina226_addr, msg_in.command);
+							data = Read_data(INA226_ADDRESS, msg_in.command);
+							// Pasar de bits a voltaje
 							msg_out.data_rx = (uint16_t)data * 0.00125f;	// [V]
 							break;
 						default:	break;
 					break;
 					}
-			}
+				}
 		}
-		
 		osMessageQueuePut(q_I2C_out, &msg_out, 0U, 10U);
 	}
 }
@@ -167,34 +155,37 @@ void Th_I2C(void *argument) {
     I2C_MsgOut_t respuesta;
 
     while (1) {
-        // 1. Pedir Temperatura (LM75B)
-        peticion.operation = I2C_READ;
-        peticion.sensor = SENSOR_LM75B;
-        peticion.command = 0x00;
-        I2C_SendRequest(&peticion);
-        if (I2C_GetResponse(&respuesta, osWaitForever) == osOK) {
-            test_temp = respuesta.data_rx;
-        }
+			// 1. Pedir Temperatura (LM75B)
+			peticion.operation = I2C_READ;
+			peticion.sensor = SENSOR_LM75B;
+			peticion.command = 0x00;
+			
+			osMessageQueuePut(q_I2C_in, &peticion, 0U, 10U);
+			if(osMessageQueueGet(q_I2C_out, &respuesta, NULL, osWaitForever) == osOK){
+				test_temp = respuesta.data_rx;
+			}
 
-        // 2. Pedir Voltaje (INA226)
-        peticion.operation = I2C_READ;
-        peticion.sensor = SENSOR_INA226;
-        peticion.command = 0x02;
-        I2C_SendRequest(&peticion);
-        if (I2C_GetResponse(&respuesta, osWaitForever) == osOK) {
-            test_volt = respuesta.data_rx;
-        }
+			// 2. Pedir Voltaje (INA226)
+			peticion.operation = I2C_READ;
+			peticion.sensor = SENSOR_INA226;
+			peticion.command = 0x02;
+			
+			osMessageQueuePut(q_I2C_in, &peticion, 0U, 10U);
+			if(osMessageQueueGet(q_I2C_out, &respuesta, NULL, osWaitForever) == osOK){
+				test_volt = respuesta.data_rx;
+			}
 
-        // 3. Pedir Corriente (INA226)
-        peticion.operation = I2C_READ;
-        peticion.sensor = SENSOR_INA226;
-        peticion.command = 0x04;
-        I2C_SendRequest(&peticion);
-        if (I2C_GetResponse(&respuesta, osWaitForever) == osOK) {
-            test_curr = respuesta.data_rx;
-        }
+			// 3. Pedir Corriente (INA226)
+			peticion.operation = I2C_READ;
+			peticion.sensor = SENSOR_INA226;
+			peticion.command = 0x04;
+			
+			osMessageQueuePut(q_I2C_in, &peticion, 0U, 10U);
+			if(osMessageQueueGet(q_I2C_out, &respuesta, NULL, osWaitForever) == osOK){
+				test_curr = respuesta.data_rx;
+			}
 
-        osDelay(1000); // Repetir cada segundo
+			osDelay(1000); // Repetir cada segundo
     }
 }
 	
@@ -217,26 +208,9 @@ static void I2C_Callback(uint32_t event){
 	}
 }
 
-/* --- Funciones para que main pueda entrar --- */
-//EXPLICACION BORRAR: queremos q main pueda entrar para que pueda enviar los datos al LCD 
-//O para saber que sensor es el que se esta usando pues td eso
-osStatus_t I2C_SendRequest(I2C_MsgIn_t *msg) {
-    return osMessageQueuePut(q_I2C_in, msg, 0U, 10U);
-}
-
-osStatus_t I2C_GetResponse(I2C_MsgOut_t *msg, uint32_t timeout) {
-    return osMessageQueueGet(q_I2C_out, msg, NULL, timeout);
-}
-
 /*==========================================================
 =                       LECTURA DE DATOS                      =
 ==========================================================*/
-/* I2Cdrv -> MasterXXXX(address, data, num, xfer_pendig);
-	* addres: Dirección I2C del sensor 
-	* data: Datos que queremos transmitir o guardar
-	* num: Número de bytes
-	* xfer_pending: Si se quiere mantener la transferencia pendiente*/
-
 /* --- Obtención del dato a leer --- */
 static int16_t Read_data(uint8_t address, uint8_t reg){
 	uint8_t lectura_bits[2];
